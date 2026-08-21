@@ -142,6 +142,14 @@ These are the bugs that cost hours - do not "fix" them back:
     `W_CL_FANSPEED = _IOW(0xEE, 0x10, int32_t*)`.
 7.  `g5fan` needs a ~200 ms sleep after a speed write before reading back,
     otherwise you read the old value.
+8.  GPU fan temp (faninfo2 bits 16-23) reads ~20°C at idle on this unit -
+    quirk, not a fault. Duty byte is still valid.
+9.  fish shell does not support `<<<` herestrings - wrap multi-command sudo
+    one-liners in `bash -c '...'` or use `echo ... | sudo tee`.
+10. **Password prompts from keybinds** mean the installed `fans` wrapper is
+    the old pre-`fans-priv` version: it called systemctl/systemd-run
+    directly, which triggers polkit modals. Fix:
+    `git pull && cd fans-g5-kf && sudo make install`
 
 ## Troubleshooting
 
