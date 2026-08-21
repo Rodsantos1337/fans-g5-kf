@@ -1,0 +1,51 @@
+#!/bin/bash
+# fans-priv - privileged backend for the fans wrapper (Gigabyte G5 KF)
+# Runs as root via scoped NOPASSWD sudoers rule. Fixed subcommands only.
+
+G5FAN=/usr/local/bin/g5fan
+GUARD=fans-guard.service
+MANUAL=fans-manual
+
+pin() {  # pin <0-100> - stop guard, hold speed detached as root unit
+    systemctl stop "$GUARD" 2>/dev/null
+    systemctl stop "$MANUAL" 2>/dev/null
+    systemd-run --unit="$MANUAL" --collect "$G5FAN" hold "$1"
+}
+
+case "${1:-}" in
+  max)
+    pin 100
+    "$G5FAN" perf 2
+    echo "fans: MAX (turbine mode)"
+    ;;
+  pin)
+    [ -n "$2" ] || { echo "usage: fans-priv pin <0-100>" >&2; exit 1; }
+    pin "$2"
+    echo "fans: pinned at $2%"
+    ;;
+  auto)
+    systemctl stop "$MANUAL" 2>/dev/null
+    systemctl try-restart "$GUARD" 2>/dev/null || systemctl start "$GUARD"
+    echo "fans: auto (thermal guard active)"
+    ;;
+  ec)
+    systemctl stop "$MANUAL" 2>/dev/null
+    systemctl stop "$GUARD" 2>/dev/null
+    "$G5FAN" off >/dev/null 2>&1
+    echo "fans: released to EC auto control"
+    ;;
+  status)
+    if systemctl is-active "$GUARD" >/dev/null 2>&1; then echo "guard: ACTIVE"; else echo "guard: inactive"; fi
+    if systemctl is-active "$MANUAL" >/dev/null 2>&1; then
+        args=$(systemctl show "$MANUAL" -p ExecStart --value | grep -o 'hold [0-9]*' || true)
+        echo "manual: ACTIVE ($args)"
+    else
+        echo "manual: inactive"
+    fi
+    exec "$G5FAN" status
+    ;;
+  *)
+    echo "usage: fans-priv max | pin <0-100> | auto | ec | status" >&2
+    exit 1
+    ;;
+esac

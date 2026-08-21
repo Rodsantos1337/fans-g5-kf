@@ -53,11 +53,18 @@ sudo systemctl enable --now fans-guard     # thermal guard at boot (recommended)
 What install.sh does:
 
 1. `make` (compiles g5fan)
-2. installs to `/usr/local/bin/`: `g5fan`, `fans`, `fans-guard`
+2. installs to `/usr/local/bin/`: `g5fan`, `fans`, `fans-priv`, `fans-guard`
 3. installs `fans-guard.service` to `/etc/systemd/system/`
 4. adds `/etc/sudoers.d/fans-nopasswd`:
-   `<user> ALL=(root) NOPASSWD: /usr/local/bin/g5fan` — scoped to this binary
-   ONLY, then validates with `visudo -c`
+   `<user> ALL=(root) NOPASSWD: /usr/local/bin/fans-priv` — scoped to the
+   privileged backend ONLY (fixed subcommands, no arbitrary commands), then
+   validates with `visudo -c`
+
+Architecture note: the `fans` wrapper is unprivileged and calls
+`sudo -n fans-priv <cmd>` in ONE silent sudo call. fans-priv does all the
+systemctl/systemd-run/g5fan work as root. Do NOT mix direct systemctl calls
+(polkit auth modals) with sudo inside the wrapper - that caused triple
+password prompts from i3 keybinds before this design.
 
 ## Commands
 

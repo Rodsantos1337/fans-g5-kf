@@ -14,6 +14,7 @@ clean:
 install: g5fan
 	install -Dm755 g5fan $(DESTDIR)$(PREFIX)/bin/g5fan
 	install -Dm755 fans $(DESTDIR)$(PREFIX)/bin/fans
+	install -Dm755 fans-priv $(DESTDIR)$(PREFIX)/bin/fans-priv
 	install -Dm755 fans-guard $(DESTDIR)$(PREFIX)/bin/fans-guard
 	install -Dm644 fans-guard.service $(DESTDIR)$(SYSTEMDUNITDIR)/fans-guard.service
 

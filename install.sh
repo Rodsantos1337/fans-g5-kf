@@ -11,9 +11,10 @@ USER_NAME="${SUDO_USER:-$USER}"
 make
 make install
 
-# passwordless sudo for the g5fan binary only (not general root)
+# passwordless sudo for the privileged backend ONLY (fixed subcommands,
+# no arbitrary command execution) - keeps i3 keybinds fully silent
 cat > /etc/sudoers.d/fans-nopasswd <<EOF
-${USER_NAME} ALL=(root) NOPASSWD: $(command -v g5fan)
+${USER_NAME} ALL=(root) NOPASSWD: $(command -v fans-priv)
 EOF
 chmod 440 /etc/sudoers.d/fans-nopasswd
 visudo -c

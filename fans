@@ -1,44 +1,19 @@
 #!/bin/bash
-# fans - Gigabyte G5 KF fan control
-# commands: max | <0-100> | auto | status | ec (release to embedded controller)
+# fans - Gigabyte G5 KF fan control (unprivileged wrapper)
+# All privileged work happens in fans-priv via one silent NOPASSWD sudo call.
 
-G5FAN=/usr/local/bin/g5fan
-GUARD=fans-guard.service
-MANUAL=fans-manual
-
-stop_manual() { systemctl stop "$MANUAL.service" 2>/dev/null; }
+PRIV=/usr/local/bin/fans-priv
 
 case "${1:-}" in
-  max)
-    stop_manual
-    systemctl stop "$GUARD" 2>/dev/null
-    sudo "$G5FAN" perf 2        # performance profile = gaming power mode
-    systemd-run --unit="$MANUAL" --collect sudo "$G5FAN" hold 100
-    echo "fans: MAX (turbine mode, 100% + performance profile)"
-    ;;
-  [0-9]|$(printf '[1-9][0-9]'))
-    stop_manual
-    systemctl stop "$GUARD" 2>/dev/null
-    systemd-run --unit="$MANUAL" --collect sudo "$G5FAN" hold "$1"
-    echo "fans: pinned at $1%"
-    ;;
-  auto)
-    stop_manual                 # guard takes over; if disabled, falls back to EC
-    systemctl try-restart "$GUARD" 2>/dev/null || systemctl start "$GUARD"
-    echo "fans: auto (thermal guard active)"
-    ;;
-  ec)
-    stop_manual
-    systemctl stop "$GUARD" 2>/dev/null
-    sudo "$G5FAN" off
-    echo "fans: released to EC auto control"
-    ;;
-  status)
-    systemctl is-active "$GUARD" >/dev/null 2>&1 && echo "guard: ACTIVE" || echo "guard: inactive"
-    systemctl is-active "$MANUAL" >/dev/null 2>&1 && echo "manual: ACTIVE ($(systemctl show "$MANUAL" -p ExecStart --value | grep -o 'hold [0-9]*'))" || echo "manual: inactive"
-    sudo -n "$G5FAN" status
-    ;;
-  *)
-    echo "usage: fans max | fans <0-100> | fans auto | fans ec | fans status"
-    ;;
+  max)    exec sudo -n "$PRIV" max ;;
+  auto)   exec sudo -n "$PRIV" auto ;;
+  ec)     exec sudo -n "$PRIV" ec ;;
+  status) exec sudo -n "$PRIV" status ;;
+  ''|[[0-9]|[1-9][0-9]|100)
+          if [ -z "${1:-}" ]; then
+            echo "usage: fans max | fans <0-100> | fans auto | fans ec | fans status"
+            exit 1
+          fi
+          exec sudo -n "$PRIV" pin "$1" ;;
+  *) echo "usage: fans max | fans <0-100> | fans auto | fans ec | fans status" >&2; exit 1 ;;
 esac
