@@ -35,6 +35,23 @@ sudo systemctl enable --now fans-guard   # thermal guard at boot (recommended)
 The installer adds a **scoped** sudoers rule: NOPASSWD for the `g5fan` binary
 only. Nothing else runs passwordless.
 
+## i3 keybinds
+
+Add to `~/.config/i3/config` (`$mod+f` alone stays fullscreen toggle):
+
+```
+bindsym $mod+Shift+f exec --no-startup-id fans max && notify-send "Fans" "MAX - turbine mode"
+bindsym $mod+Control+f exec --no-startup-id fans auto && notify-send "Fans" "auto (thermal guard)"
+bindsym $mod+Mod1+f exec --no-startup-id notify-send "Fan status" "$(fans status 2>/dev/null | tr '\n' ' ')"
+```
+
+## Full setup guide
+
+See [AGENTS.md](AGENTS.md) for the complete fresh-install guide: hardware
+context, prerequisites, everything that does NOT work on this machine
+(nbfc, it5570-fan-dkms, pwmconfig), protocol gotchas, troubleshooting and
+machine-specific warnings.
+
 ## Notes / gotchas learned on this machine
 
 *   The fan speed ioctl takes **duty as raw 0-255 packed for 3 fans in one
