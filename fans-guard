@@ -1,0 +1,36 @@
+#!/bin/bash
+# fans-guard - thermal guard daemon for Gigabyte G5 KF
+# pins fans by CPU package temp; releases to EC auto when cool
+
+G5FAN=/usr/local/bin/g5fan
+HWMON_TEMP=/sys/class/hwmon/hwmon4/temp1_input   # coretemp package id 0
+
+# thresholds (C -> fan %). >=85 -> 100, >=80 -> 80, >=70 -> 60, else EC auto
+T_MAX=85; S_MAX=100
+T_HIGH=80; S_HIGH=80
+T_MED=70;  S_MED=60
+
+current="ec"
+echo "fans-guard: started"
+
+while true; do
+    temp=$(( $(cat "$HWMON_TEMP" 2>/dev/null || echo 0) / 1000 ))
+
+    if   (( temp >= T_MAX )); then want=$S_MAX
+    elif (( temp >= T_HIGH )); then want=$S_HIGH
+    elif (( temp >= T_MED ));  then want=$S_MED
+    else want="ec"
+    fi
+
+    if [ "$want" != "$current" ]; then
+        case "$want" in
+            ec)  logger -t fans-guard "temp ${temp}C -> releasing fans to EC auto"
+                 "$G5FAN" off >/dev/null 2>&1 ;;
+            *)   logger -t fans-guard "temp ${temp}C -> pinning fans at ${want}%"
+                 "$G5FAN" on "$want" >/dev/null 2>&1 ;;
+        esac
+        current="$want"
+    fi
+
+    sleep 2
+done
