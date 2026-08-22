@@ -7,18 +7,56 @@ nbfc profile. This tool drives the fans through the `tuxedo_io` kernel module
 (`clevo_acpi` interface), the same ioctl path TUXEDO Control Center uses on
 Clevo machines - no raw EC register writes.
 
-Requires the `tuxedo_io` module (CachyOS ships it via `tuxedo-keyboard` /
-`tuxedo-drivers`; check with `lsmod | grep tuxedo_io`).
+## Prerequisites (handled by install.sh)
+
+Three kernel modules are needed - **and `clevo_acpi` is the one that actually
+binds to the hardware**. Loading only `tuxedo_io` + `tuxedo_keyboard` gives a
+silent failure: `/dev/tuxedo_io` exists but `fans status` shows
+`interface :  (hwcheck 0)` with all-zero temps/duties, and every fan write is
+a no-op. The kernel log fills with
+`clevo_keyboard: no active interface while attempting cmd ...`.
+
+**The installer now does all of this automatically**: it installs
+`tuxedo-drivers-dkms` via your AUR helper if missing, loads `clevo_acpi`,
+writes `/etc/modules-load.d/tuxedo.conf` for boot persistence, and warns you
+if a reboot is needed. Just run `sudo ./install.sh`.
+
+Manual fallback (e.g. after adding the drivers outside the installer), on
+plain Arch (this machine runs `linux-zen`):
+
+```bash
+yay -S tuxedo-drivers-dkms          # needs matching kernel headers installed
+sudo modprobe clevo_acpi            # loads tuxedo_io + tuxedo_keyboard as deps
+printf 'clevo_acpi\ntuxedo_io\ntuxedo_keyboard\n' | \
+    sudo tee /etc/modules-load.d/tuxedo.conf    # persist across reboots
+```
+
+Verify before installing:
+
+```bash
+fans status   # not installed yet? check the device instead:
+ls /dev/tuxedo_io && journalctl -k | grep clevo_acpi   # want: bound, no errors
+```
+
+If modules were already half-loaded when you ran modprobe, reboot once - the
+`modules-load.d` entry above will bring everything up cleanly.
+
+> Gotcha: `modprobe` takes **one** module per call. `sudo modprobe a b`
+> silently ignores `b` as an unknown parameter of `a`.
+
+CachyOS users: the distro ships these drivers, but still check
+`lsmod | grep clevo_acpi` - same binding requirement applies.
 
 ## Install - final setup
 
 This is everything. The `sudo ./install.sh` step is the **last password you
-will ever type for fan control**:
+will ever type for fan control** - it covers drivers, modules, build,
+binaries and the sudoers rule:
 
 ```bash
 git clone https://github.com/Rodsantos1337/fans-g5-kf.git
 cd fans-g5-kf
-sudo ./install.sh                          # builds + installs + sudoers rule
+sudo ./install.sh                          # drivers + build + install + sudoers
 sudo systemctl enable --now fans-guard     # optional: thermal guard at boot
 ```
 
@@ -58,6 +96,10 @@ All commands are passwordless. Manual modes run detached (`systemd-run`) and
 keep rewriting the duty every ~2s (the Clevo EC otherwise re-takes control
 after a single write).
 
+Sanity check after install: `fans status` must show
+`interface : clevo_acpi (hwcheck 1)` and real temperatures. If it shows
+`hwcheck 0`, go back to [Prerequisites](#prerequisites-do-this-first).
+
 ## i3 keybinds
 
 Add to `~/.config/i3/config` - they work immediately after install with zero
@@ -69,7 +111,10 @@ bindsym $mod+Control+f exec --no-startup-id fans auto && notify-send "Fans" "aut
 bindsym $mod+Mod1+f exec --no-startup-id notify-send "Fan status" "$(fans status 2>/dev/null | tr '\n' ' ')"
 ```
 
-Reload i3 with `$mod+Shift+c`.
+Reload i3 with `$mod+Shift+c`, or live: `i3-msg reload`.
+
+Note: keybinds only *fire* commands - if `clevo_acpi` isn't bound, they run
+and silently do nothing. Fix the driver first.
 
 ## Full setup guide
 
@@ -93,6 +138,15 @@ machine-specific warnings.
     `echo ... | sudo tee`.
 *   Sudden power-off under GPU+CPU load on battery = voltage sag, not heat.
     Game plugged into the original charger.
+
+## Troubleshooting quick reference
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `open /dev/tuxedo_io: No such file or directory` | Module not loaded | `sudo modprobe clevo_acpi`; persist via `modules-load.d` (see Prerequisites) |
+| `hwcheck 0`, all temps/duties zero, writes do nothing | `clevo_acpi` not bound | Same as above; check `journalctl -k \| grep clevo` |
+| Fans stuck manual after crash | EC keeps last state until reset | They reset on reboot (EC default is auto); or `fans ec` |
+| Guard not acting | Daemon down or hwmon path changed | `journalctl -t fans-guard`; verify `systemctl status fans-guard` |
 
 ## Files
 
