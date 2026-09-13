@@ -1,0 +1,63 @@
+#!/bin/bash
+# fans-guard - thermal guard daemon for Gigabyte G5 KF (Fedora variant)
+# pins fans by CPU package temp; releases to EC auto when cool
+#
+# Fedora difference vs ../fans-guard: hwmon indices shift between kernels
+# (hardcoded hwmon4 breaks silently with temp stuck at 0). This variant
+# resolves the coretemp package sensor dynamically on every loop iteration,
+# with fallback to the Arch default path.
+
+G5FAN=/usr/local/bin/g5fan
+HWMON_FALLBACK=/sys/class/hwmon/hwmon4/temp1_input   # Arch default (coretemp package id 0)
+
+find_coretemp() {
+    local name_file dir
+    for name_file in /sys/class/hwmon/hwmon*/name; do
+        [[ -r "$name_file" ]] || continue
+        if [[ "$(cat "$name_file" 2>/dev/null)" == "coretemp" ]]; then
+            dir="$(dirname "$name_file")"
+            if [[ -r "$dir/temp1_input" ]]; then
+                echo "$dir/temp1_input"
+                return 0
+            fi
+        fi
+    done
+    echo "$HWMON_FALLBACK"
+}
+
+read_temp_c() {
+    local path raw
+    path="$(find_coretemp)"
+    raw="$(cat "$path" 2>/dev/null || echo 0)"
+    echo $(( raw / 1000 ))
+}
+
+# thresholds (C -> fan %). >=85 -> 100, >=80 -> 80, >=70 -> 60, else EC auto
+T_MAX=85; S_MAX=100
+T_HIGH=80; S_HIGH=80
+T_MED=70;  S_MED=60
+
+current="ec"
+echo "fans-guard: started (temp sensor: $(find_coretemp))"
+
+while true; do
+    temp="$(read_temp_c)"
+
+    if   (( temp >= T_MAX )); then want=$S_MAX
+    elif (( temp >= T_HIGH )); then want=$S_HIGH
+    elif (( temp >= T_MED ));  then want=$S_MED
+    else want="ec"
+    fi
+
+    if [ "$want" != "$current" ]; then
+        case "$want" in
+            ec)  logger -t fans-guard "temp ${temp}C -> releasing fans to EC auto"
+                 "$G5FAN" off >/dev/null 2>&1 ;;
+            *)   logger -t fans-guard "temp ${temp}C -> pinning fans at ${want}%"
+                 "$G5FAN" on "$want" >/dev/null 2>&1 ;;
+        esac
+        current="$want"
+    fi
+
+    sleep 2
+done

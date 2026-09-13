@@ -49,6 +49,10 @@ CachyOS users: the distro ships these drivers, but still check
 
 ## Install - final setup
 
+> **Fedora?** Use `sudo ./fedora/install-fedora.sh` instead — see
+> [`fedora/README.md`](fedora/README.md). All Fedora-specific files live in
+> `fedora/`; shared binaries are identical on both distros.
+
 This is everything. The `sudo ./install.sh` step is the **last password you
 will ever type for fan control** - it covers drivers, modules, build,
 binaries and the sudoers rule:
@@ -155,3 +159,5 @@ machine-specific warnings.
 *   `fans-priv` - privileged backend, fixed subcommands only (root via NOPASSWD)
 *   `fans-guard` + `fans-guard.service` - temperature-driven daemon
 *   thresholds live at the top of `fans-guard`
+*   `fedora/` - Fedora port: `install-fedora.sh` (official Tuxedo repo),
+    Fedora-robust `fans-guard` (dynamic coretemp lookup), `README.md`
